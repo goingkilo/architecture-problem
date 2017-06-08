@@ -1,0 +1,29 @@
+
+server:
+ rootPath: /movies/
+ requestLog:
+     appenders:
+      - type: file
+        currentLogFilename: /Users/kraghunathan/log/access.log
+        threshold: ALL
+        archive: true
+        archivedLogFilenamePattern: /Users/kraghunathan/log/access-%d.log
+        archivedFileCount: 5
+
+ applicationConnectors:
+  - type: http 
+    port: 9090
+    bindHost: 0.0.0.0
+
+logging:
+ level: INFO
+ appenders:
+  - type: file
+    currentLogFilename: /Users/kraghunathan/log/a.log
+    threshold: ALL
+    archive: true
+    archivedLogFilenamePattern: /Users/kraghunathan/log/monocle-%d.log
+    archivedFileCount: 5
+    timeZone: IST
+
+

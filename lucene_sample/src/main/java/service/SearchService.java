@@ -1,4 +1,4 @@
-package geektrust;
+package service;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -8,31 +8,39 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.FSDirectory;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
+
+import static org.apache.lucene.search.BooleanClause.Occur;
 
 /**
  * Created by kraghunathan on 6/5/17.
  * Next steps:
- * Over the web via servlets ? spring ?
+ * Over the web via servlets ? spring ? --DW - KR
  * UI with websockets
- * redis in between, so that we get a type as you go and stuff is fetched from cache
+ * redis in between, so that we get a type as you go and stuff is fetched from cache ?
  * inventory data to be indexed
- * no solr - 
+ * no solr -
+ * Notes: new things : termQuery/booleanQuery , to do Collector, also, how to facet service results by user preferences
  */
-public class GeektrustSearchProblem {
+public class SearchService {
 
     public static final String indexDir = "index";
+    private static final String ROW = "row";
 
     public void index() throws IOException {
 
@@ -49,7 +57,7 @@ public class GeektrustSearchProblem {
             movie = movie.toLowerCase();
 
             Document doc = new Document();
-            Field pathField = new StringField("path", movie, Field.Store.YES);
+            Field pathField = new StringField("row", movie, Field.Store.YES);
             doc.add(pathField);
 
             String[] b = movie.split(",");
@@ -89,28 +97,61 @@ public class GeektrustSearchProblem {
         writer.close();
     }
 
-    public void search( String searchTerm) throws IOException, ParseException {
+    public List<String> search(String searchTerm) throws IOException, ParseException {
+
         IndexReader reader = DirectoryReader.open( FSDirectory.open(Paths.get(indexDir)));
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        QueryParser parser = new QueryParser("movie_title", new StandardAnalyzer());
+        QueryParser parser = new QueryParser(ROW, new StandardAnalyzer());
         Query query = parser.parse(searchTerm);
 
         ScoreDoc[] hits = searcher.search( query, 25).scoreDocs;
 
+        List<String> ret = new ArrayList<String>();
+
         for (int i = 0; i < hits.length; i++) {
             Document hitDoc = searcher.doc(hits[i].doc);
-            System.out.println(hitDoc.get("path"));
-            System.out.println( " __________________ " );
+            ret.add(hitDoc.get(ROW));
         }
-        System.out.println( "-------------------" );
 
         reader.close();
+
+        return ret;
+    }
+
+    public List<String> searchByTerm(String searchTerm) throws IOException, ParseException {
+
+        IndexReader reader = DirectoryReader.open( FSDirectory.open(Paths.get(indexDir)));
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        BooleanQuery  query = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("director_name", searchTerm)), Occur.SHOULD)
+                .add(new TermQuery(new Term("actor_1_name", searchTerm)), Occur.SHOULD)
+                .add(new TermQuery(new Term("actor_2_name", searchTerm)), Occur.SHOULD)
+                .add(new TermQuery(new Term("actor_3_name", searchTerm)), Occur.SHOULD)
+                .add(new TermQuery(new Term("movie_title", searchTerm)), Occur.SHOULD)
+                .add(new TermQuery(new Term("director_name", searchTerm)), Occur.SHOULD)
+                .build();
+
+
+        ScoreDoc[] hits = searcher.search( query, reader.numDocs()).scoreDocs;
+        // or use a collector?
+
+        List<String> ret = new ArrayList<String>();
+
+        for (int i = 0; i < hits.length; i++) {
+            Document hitDoc = searcher.doc(hits[i].doc);
+            ret.add(hitDoc.get(ROW));
+        }
+
+        reader.close();
+
+        return ret;
 
     }
 
     public static void main(String[] args) throws IOException, ParseException {
-       //new GeektrustSearchProblem().index();
-       new GeektrustSearchProblem().search( args[0]);
+        System.out.println(new SearchService().search("love*"));
     }
+
 }
